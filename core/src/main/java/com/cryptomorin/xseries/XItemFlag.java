@@ -35,6 +35,7 @@ import org.jetbrains.annotations.Unmodifiable;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -336,6 +337,7 @@ public enum XItemFlag implements XBase<XItemFlag, ItemFlag> {
             .filter(x -> x != HIDE_LORE && x != HIDE_ITEM_NAME && x != HIDE_CUSTOM_NAME)
             .filter(XBase::isSupported)
             .map(XItemFlag::get)
+            .filter(Objects::nonNull)
             .toArray(ItemFlag[]::new);
 
     private final ItemFlag itemFlag;
@@ -383,25 +385,27 @@ public enum XItemFlag implements XBase<XItemFlag, ItemFlag> {
     @Contract(mutates = "param1")
     public void set(@NotNull ItemStack item) {
         ItemMeta meta = item.getItemMeta();
+        if (meta == null || itemFlag == null) return;
         meta.addItemFlags(itemFlag);
         item.setItemMeta(meta);
     }
 
     @Contract(mutates = "param1")
     public void set(@NotNull ItemMeta meta) {
-        meta.addItemFlags(itemFlag);
+        if (itemFlag != null) meta.addItemFlags(itemFlag);
     }
 
     @Contract(mutates = "param1")
     public void removeFrom(@NotNull ItemStack item) {
         ItemMeta meta = item.getItemMeta();
+        if (meta == null) return;
         removeFrom(meta);
         item.setItemMeta(meta);
     }
 
     @Contract(mutates = "param1")
     public void removeFrom(@NotNull ItemMeta meta) {
-        meta.removeItemFlags(itemFlag);
+        if (itemFlag != null) meta.removeItemFlags(itemFlag);
     }
 
     @Contract(value = "_ -> new", pure = true)
@@ -423,7 +427,7 @@ public enum XItemFlag implements XBase<XItemFlag, ItemFlag> {
 
     @Contract(mutates = "param1")
     public boolean has(@NotNull ItemMeta meta) {
-        return meta.getItemFlags().contains(itemFlag);
+        return itemFlag != null && meta.getItemFlags().contains(itemFlag);
     }
 
     /**
