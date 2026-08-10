@@ -1313,7 +1313,10 @@ public final class XItemStack {
             if (enchantment != null) {
                 for (String enchantName : enchantment.getKeys(false)) {
                     Optional<XEnchantment> enchant = XEnchantment.of(enchantName);
-                    enchant.ifPresent(xEnchantment -> meta.addStoredEnchant(xEnchantment.get(), enchantment.getInt(enchantName), true));
+                    enchant.ifPresent(xEnchantment -> {
+                        Enchantment actual = xEnchantment.get();
+                        if (actual != null) meta.addStoredEnchant(actual, enchantment.getInt(enchantName), true);
+                    });
                 }
             }
         }
@@ -1323,7 +1326,10 @@ public final class XItemStack {
             if (enchants != null) {
                 for (String enchantName : enchants.getKeys(false)) {
                     Optional<XEnchantment> enchant = XEnchantment.of(enchantName);
-                    enchant.ifPresent(xEnchantment -> meta.addEnchant(xEnchantment.get(), enchants.getInt(enchantName), true));
+                    enchant.ifPresent(xEnchantment -> {
+                        Enchantment actual = xEnchantment.get();
+                        if (actual != null) meta.addEnchant(actual, enchants.getInt(enchantName), true);
+                    });
                 }
             } else if (config.getBoolean("glow")) {
                 meta.addEnchant(XEnchantment.UNBREAKING.get(), 1, false);
