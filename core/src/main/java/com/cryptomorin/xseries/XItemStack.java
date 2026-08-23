@@ -58,8 +58,9 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.potion.PotionType;
 import org.jetbrains.annotations.*;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 
 import java.util.*;
 import java.util.function.BiPredicate;
@@ -121,13 +122,13 @@ public final class XItemStack {
             SUPPORTS_ITEM_MODEL,
             SUPPORTS_ITEM_NAME;
     private static final boolean SUPPORTS_LEGACY_POTION;
-    private static final Method LEGACY_POTION_FROM_ITEMSTACK;
-    private static final Method LEGACY_POTION_GET_TYPE;
-    private static final Method LEGACY_POTION_GET_LEVEL;
-    private static final Method LEGACY_POTION_HAS_EXTENDED;
-    private static final Method LEGACY_POTION_IS_SPLASH;
-    private static final Constructor<?> LEGACY_POTION_CTOR;
-    private static final Method LEGACY_POTION_TO_ITEMSTACK;
+    private static final MethodHandle Potion_fromItemStack;
+    private static final MethodHandle Potion_getType;
+    private static final MethodHandle Potion_getLevel;
+    private static final MethodHandle Potion_hasExtendedDuration;
+    private static final MethodHandle Potion_isSplash;
+    private static final MethodHandle Potion_new;
+    private static final MethodHandle Potion_toItemStack;
 
     static {
         boolean supportsPotionColor = false,
@@ -139,22 +140,22 @@ public final class XItemStack {
                 supportsItemName = false;
 
         boolean legacyPotionAvailable = false;
-        Method legacyFromItemStack = null, legacyGetType = null, legacyGetLevel = null;
-        Method legacyHasExtended = null, legacyIsSplash = null, legacyToItemStack = null;
-        Constructor<?> legacyCtor = null;
+        MethodHandle fromItemStack = null, getType = null, getLevel = null;
+        MethodHandle hasExtendedDuration = null, isSplash = null, toItemStack = null;
+        MethodHandle potionCtor = null;
 
         try {
-            Class<?> pClass = Class.forName("org.bukkit.potion.Potion");
-            Class<?> ptClass = Class.forName("org.bukkit.potion.PotionType");
-            legacyFromItemStack = pClass.getMethod("fromItemStack", ItemStack.class);
-            legacyGetType = pClass.getMethod("getType");
-            legacyGetLevel = pClass.getMethod("getLevel");
-            legacyHasExtended = pClass.getMethod("hasExtendedDuration");
-            legacyIsSplash = pClass.getMethod("isSplash");
-            legacyCtor = pClass.getConstructor(ptClass, int.class, boolean.class, boolean.class);
-            legacyToItemStack = pClass.getMethod("toItemStack", int.class);
+            Class<?> potionClass = Class.forName("org.bukkit.potion.Potion");
+            MethodHandles.Lookup lookup = MethodHandles.lookup();
+            fromItemStack = lookup.findStatic(potionClass, "fromItemStack", MethodType.methodType(potionClass, ItemStack.class));
+            getType = lookup.findVirtual(potionClass, "getType", MethodType.methodType(PotionType.class));
+            getLevel = lookup.findVirtual(potionClass, "getLevel", MethodType.methodType(int.class));
+            hasExtendedDuration = lookup.findVirtual(potionClass, "hasExtendedDuration", MethodType.methodType(boolean.class));
+            isSplash = lookup.findVirtual(potionClass, "isSplash", MethodType.methodType(boolean.class));
+            potionCtor = lookup.findConstructor(potionClass, MethodType.methodType(void.class, PotionType.class, int.class, boolean.class, boolean.class));
+            toItemStack = lookup.findVirtual(potionClass, "toItemStack", MethodType.methodType(ItemStack.class, int.class));
             legacyPotionAvailable = true;
-        } catch (ReflectiveOperationException ignored) {
+        } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException ignored) {
         }
 
         try {
@@ -207,13 +208,13 @@ public final class XItemStack {
         SUPPORTS_ITEM_MODEL = supportsItemModel;
         SUPPORTS_ITEM_NAME = supportsItemName;
         SUPPORTS_LEGACY_POTION = legacyPotionAvailable;
-        LEGACY_POTION_FROM_ITEMSTACK = legacyFromItemStack;
-        LEGACY_POTION_GET_TYPE = legacyGetType;
-        LEGACY_POTION_GET_LEVEL = legacyGetLevel;
-        LEGACY_POTION_HAS_EXTENDED = legacyHasExtended;
-        LEGACY_POTION_IS_SPLASH = legacyIsSplash;
-        LEGACY_POTION_CTOR = legacyCtor;
-        LEGACY_POTION_TO_ITEMSTACK = legacyToItemStack;
+        Potion_fromItemStack = fromItemStack;
+        Potion_getType = getType;
+        Potion_getLevel = getLevel;
+        Potion_hasExtendedDuration = hasExtendedDuration;
+        Potion_isSplash = isSplash;
+        Potion_new = potionCtor;
+        Potion_toItemStack = toItemStack;
     }
 
     private interface MetaHandler<M extends ItemMeta> {
@@ -853,7 +854,7 @@ public final class XItemStack {
                         .method("public org.bukkit.NamespacedKey getKey()")
                         .exists();
 
-        @SuppressWarnings({"deprecation", "StatementWithEmptyBody"})
+        @SuppressWarnings({"deprecation"})
         private void handlePotionMeta(PotionMeta meta) {
             if (supports(1, 9)) {
                 if (SUPPORTS_PotionMeta_getBasePotionType) {
@@ -888,15 +889,15 @@ public final class XItemStack {
                 if (SUPPORTS_POTION_COLOR && meta.hasColor()) config.set("color", meta.getColor().asRGB());
             } else if (SUPPORTS_LEGACY_POTION) {
                 try {
-                    Object potion = LEGACY_POTION_FROM_ITEMSTACK.invoke(null, item);
-                    Enum<?> type = (Enum<?>) LEGACY_POTION_GET_TYPE.invoke(potion);
-                    int level = (int) LEGACY_POTION_GET_LEVEL.invoke(potion);
-                    boolean extended = (boolean) LEGACY_POTION_HAS_EXTENDED.invoke(potion);
-                    boolean splash = (boolean) LEGACY_POTION_IS_SPLASH.invoke(potion);
+                    Object potion = Potion_fromItemStack.invoke(item);
+                    PotionType type = (PotionType) Potion_getType.invoke(potion);
+                    int level = (int) Potion_getLevel.invoke(potion);
+                    boolean extended = (boolean) Potion_hasExtendedDuration.invoke(potion);
+                    boolean splash = (boolean) Potion_isSplash.invoke(potion);
 
                     config.set("level", level);
                     config.set("base-effect", type.name() + ", " + extended + ", " + splash);
-                } catch (ReflectiveOperationException ignored) {
+                } catch (Throwable ignored) {
                 }
             }
         }
@@ -1706,16 +1707,15 @@ public final class XItemStack {
                 if (!Strings.isNullOrEmpty(baseEffect)) {
                     try {
                         List<String> split = split(baseEffect, ',');
-                        Object type = Enum.valueOf(PotionType.class, split.get(0).trim());
+                        PotionType type = Enum.valueOf(PotionType.class, split.get(0).trim());
                         boolean extended = split.size() > 1 && Boolean.parseBoolean(split.get(1).trim());
                         boolean splash = split.size() > 2 && Boolean.parseBoolean(split.get(2).trim());
 
-                        Object potion = LEGACY_POTION_CTOR.newInstance(type, config.getInt("level", 1), splash, extended);
-                        ItemStack result = (ItemStack) LEGACY_POTION_TO_ITEMSTACK
-                                .invoke(potion, item.getAmount());
+                        Object potion = Potion_new.invoke(type, config.getInt("level", 1), splash, extended);
+                        ItemStack result = (ItemStack) Potion_toItemStack.invoke(potion, item.getAmount());
                         this.item = result;
                         this.meta = result.getItemMeta();
-                    } catch (ReflectiveOperationException ignored) {
+                    } catch (Throwable ignored) {
                     }
                 }
             }
